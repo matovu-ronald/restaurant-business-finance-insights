@@ -62,16 +62,43 @@ function BarChart({ data, title, metric }: BarChartProps) {
       .selectAll('text')
       .attr('transform', 'rotate(-15)')
       .style('text-anchor', 'end')
-      .style('font-size', '12px');
+      .style('font-size', '12px')
+      .style('fill', '#374151')
+      .style('font-weight', '500');
 
-    g.append('g')
+    // Style X axis line and ticks
+    g.select('.domain').style('stroke', '#9CA3AF');
+    g.selectAll('.tick line').style('stroke', '#D1D5DB');
+
+    const yAxis = g.append('g')
       .call(
         d3.axisLeft(y).tickFormat((d) =>
           metric === 'covers' ? d.toString() : formatCurrency(d as number)
         )
+      );
+    
+    yAxis.selectAll('text')
+      .style('font-size', '11px')
+      .style('fill', '#374151')
+      .style('font-weight', '500');
+    
+    // Style Y axis line and ticks
+    yAxis.select('.domain').style('stroke', '#9CA3AF');
+    yAxis.selectAll('.tick line').style('stroke', '#D1D5DB');
+
+    // Add horizontal grid lines for better readability
+    g.append('g')
+      .attr('class', 'grid')
+      .call(
+        d3.axisLeft(y)
+          .tickSize(-width)
+          .tickFormat(() => '')
       )
-      .selectAll('text')
-      .style('font-size', '11px');
+      .selectAll('line')
+      .style('stroke', '#E5E7EB')
+      .style('stroke-dasharray', '3,3');
+    
+    g.select('.grid .domain').remove();
 
     // Bars
     g.selectAll('.bar')
