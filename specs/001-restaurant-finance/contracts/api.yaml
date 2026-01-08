@@ -1,0 +1,312 @@
+openapi: 3.0.3
+info:
+  title: Lakehouse Restaurant Finance API (MVP)
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /imports:
+    post:
+      summary: Upload a CSV for import (POS, payroll, inventory)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                sourceType:
+                  type: string
+                  enum: [pos, payroll, inventory]
+                mappingProfileId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "202":
+          description: Import accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportJob"
+  /imports/{id}:
+    get:
+      summary: Get import job status and anomalies
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Import status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportJobDetail"
+  /kpi/daily:
+    get:
+      summary: Fetch daily KPI aggregates
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [30d, ytd, trailing12m]
+        - in: query
+          name: channel
+          schema:
+            type: string
+            enum: [all, dine-in, takeaway, pickup, catering]
+        - in: query
+          name: daypart
+          schema:
+            type: string
+            enum: [all, breakfast, lunch, dinner]
+      responses:
+        "200":
+          description: KPI data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KPIResponse"
+  /kpi/drilldown/sales:
+    get:
+      summary: Drill-down sales lines
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: channel
+          schema:
+            type: string
+            enum: [all, dine-in, takeaway, pickup, catering]
+        - in: query
+          name: daypart
+          schema:
+            type: string
+            enum: [all, breakfast, lunch, dinner]
+      responses:
+        "200":
+          description: Sales lines with filters applied
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaleLine"
+  /exports/pnl:
+    post:
+      summary: Request P&L export for a period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+      responses:
+        "202":
+          description: Export queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+  /exports/{id}:
+    get:
+      summary: Get export status and download link
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Export status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJobDetail"
+components:
+  schemas:
+    ImportJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sourceType:
+          type: string
+          enum: [pos, payroll, inventory]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        rowCount:
+          type: integer
+        anomalyCount:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    ImportJobDetail:
+      allOf:
+        - $ref: "#/components/schemas/ImportJob"
+        - type: object
+          properties:
+            anomalies:
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportAnomaly"
+    ImportAnomaly:
+      type: object
+      properties:
+        rowNumber:
+          type: integer
+        field:
+          type: string
+        code:
+          type: string
+          enum:
+            [
+              missing_channel,
+              negative_total,
+              bad_date,
+              duplicate_row,
+              missing_column,
+            ]
+        details:
+          type: string
+    KPIResponse:
+      type: object
+      properties:
+        freshnessTimestamp:
+          type: string
+          format: date-time
+        range:
+          type: string
+        totals:
+          $ref: "#/components/schemas/KPISummary"
+        byChannel:
+          type: array
+          items:
+            $ref: "#/components/schemas/KPISummary"
+        byDaypart:
+          type: array
+          items:
+            $ref: "#/components/schemas/KPISummary"
+    KPISummary:
+      type: object
+      properties:
+        label:
+          type: string
+        revenue:
+          type: number
+          format: double
+        cogs:
+          type: number
+          format: double
+        grossMargin:
+          type: number
+          format: double
+        laborCost:
+          type: number
+          format: double
+        laborPct:
+          type: number
+          format: double
+        opex:
+          type: number
+          format: double
+        netProfit:
+          type: number
+          format: double
+        covers:
+          type: integer
+        avgCheck:
+          type: number
+          format: double
+        discounts:
+          type: number
+          format: double
+        comps:
+          type: number
+          format: double
+    SaleLine:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        channel:
+          type: string
+        daypart:
+          type: string
+        itemName:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        lineSubtotal:
+          type: number
+        lineDiscounts:
+          type: number
+        lineComps:
+          type: number
+    ExportJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        exportType:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        requestedAt:
+          type: string
+          format: date-time
+    ExportJobDetail:
+      allOf:
+        - $ref: "#/components/schemas/ExportJob"
+        - type: object
+          properties:
+            downloadUrl:
+              type: string
+              format: uri
+            completedAt:
+              type: string
+              format: date-time
